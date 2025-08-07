@@ -1,0 +1,69 @@
+h1,h4 {
+    margin-top: 5px;  /* 设置顶部边距为 5px */
+    margin-bottom: 5px;  /* 设置底部边距为 5px */
+}
+.pid-input {
+    width: 40px; /* 设置宽度为 40px */
+}
+body {
+    font-family: Arial, sans-serif;
+    padding: 5px;
+}
+.pid-section {
+    margin-bottom: 10px;
+}
+label, button {
+    margin: 10px 0;
+}
+.button-group {
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.reset-button {
+    width: 100%;  /* 让按钮宽度适应整个屏幕 */
+    display: block; /* 让按钮独占一行 */
+    margin-top: 5px; /* 增加顶部间距 */
+    padding: 10px; /* 增大按钮点击区域 */
+    background-color: red; /* 设为红色，突出显示 */
+    color: white; /* 文字颜色为白色 */
+    border: none; /* 去掉边框 */
+    cursor: pointer; /* 变成可点击状态 */
+    font-size: 16px; /* 字体大小 */
+}
+.hector_slam-button {
+    width: 80%;  /* 让按钮宽度适应整个屏幕 */
+    display: block; /* 让按钮独占一行 */
+    margin: 10px auto;
+    padding: 10px; /* 增大按钮点击区域 */
+    background-color: blue; /* 设为红色，突出显示 */
+    color: white; /* 文字颜色为白色 */
+    border: none; /* 去掉边框 */
+    cursor: pointer; /* 变成可点击状态 */
+    font-size: 16px; /* 字体大小 */
+    border-radius: 12px;
+}
+.hector_slam-button:active {
+    background-color: green;
+    transition: background-color 0.1s ease;
+}
+
+#data-display {
+    position: fixed;  /* 使用固定定位 */
+    top: 20px;     /* 距离底部20px */
+    right: 20px;      /* 距离右侧20px */
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明黑色背景 */
+    color: white;      /* 白色文本 */
+    border-radius: 5px; /* 圆角 */
+    font-size: 18px;    /* 字体大小 */
+    z-index: 9999;     /* 确保它在其他元素之上 */
+}
+
+canvas {
+    border: 1px solid black;
+    width: 95vmin;  /* 占据视口宽度的 80% */
+    height: 95vmin; /* 占据视口高度的 80% */
+    display: block;
+    margin: 0 auto; /* 水平居中 */
+}

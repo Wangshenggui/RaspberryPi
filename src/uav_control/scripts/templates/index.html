@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PID 控制器参数调节</title>
+    <!-- 引入静态 CSS 文件 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <h1>PID 控制器参数调节</h1>
+
+    <!-- 速度环 PID -->
+    <h4>速度环 PID 参数调节</h4>
+    <!-- P 参数 -->
+    <div class="pid-section">
+        <!-- <h4>比例 (P)</h4> -->
+        <div class="button-group">
+            <button id="speed_p_decrease_0_01">-0.01</button>
+            <button id="speed_p_decrease_0_1">-0.1</button>
+            <button id="speed_p_decrease_1">-1</button>
+        </div>
+        <input type="text" id="speed_p_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="speed_p_increase_1">+1</button>
+            <button id="speed_p_increase_0_1">+0.1</button>
+            <button id="speed_p_increase_0_01">+0.01</button>
+        </div>
+        <button id="speed_p_reset" class="reset-button">复位</button>
+    </div>
+
+    <!-- I 参数 -->
+    <div class="pid-section">
+        <!-- <h4>积分 (I)</h4> -->
+        <div class="button-group">
+            <button id="speed_i_decrease_0_01">-0.01</button>
+            <button id="speed_i_decrease_0_1">-0.1</button>
+            <button id="speed_i_decrease_1">-1</button>
+        </div>
+        <input type="text" id="speed_i_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="speed_i_increase_1">+1</button>
+            <button id="speed_i_increase_0_1">+0.1</button>
+            <button id="speed_i_increase_0_01">+0.01</button>
+        </div>
+        <button id="speed_i_reset" class="reset-button">复位</button>
+    </div>
+
+    <!-- D 参数 -->
+    <div class="pid-section">
+        <!-- <h4>微分 (D)</h4> -->
+        <div class="button-group">
+            <button id="speed_d_decrease_0_01">-0.01</button>
+            <button id="speed_d_decrease_0_1">-0.1</button>
+            <button id="speed_d_decrease_1">-1</button>
+        </div>
+        <input type="text" id="speed_d_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="speed_d_increase_1">+1</button>
+            <button id="speed_d_increase_0_1">+0.1</button>
+            <button id="speed_d_increase_0_01">+0.01</button>
+        </div>
+        <button id="speed_d_reset" class="reset-button">复位</button>
+    </div>
+
+    <h4>位置环 PID 参数调节</h4>
+    <!-- P 参数 -->
+    <div class="pid-section">
+        <!-- <h4>比例 (P)</h4> -->
+        <div class="button-group">
+            <button id="position_p_decrease_0_01">-0.01</button>
+            <button id="position_p_decrease_0_1">-0.1</button>
+            <button id="position_p_decrease_1">-1</button>
+        </div>
+        <input type="text" id="position_p_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="position_p_increase_1">+1</button>
+            <button id="position_p_increase_0_1">+0.1</button>
+            <button id="position_p_increase_0_01">+0.01</button>
+        </div>
+        <button id="position_p_reset" class="reset-button">复位</button>
+    </div>
+
+    <!-- I 参数 -->
+    <div class="pid-section">
+        <!-- <h4>积分 (I)</h4> -->
+        <div class="button-group">
+            <button id="position_i_decrease_0_01">-0.01</button>
+            <button id="position_i_decrease_0_1">-0.1</button>
+            <button id="position_i_decrease_1">-1</button>
+        </div>
+        <input type="text" id="position_i_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="position_i_increase_1">+1</button>
+            <button id="position_i_increase_0_1">+0.1</button>
+            <button id="position_i_increase_0_01">+0.01</button>
+        </div>
+        <button id="position_i_reset" class="reset-button">复位</button>
+    </div>
+
+    <!-- D 参数 -->
+    <div class="pid-section">
+        <!-- <h4>微分 (D)</h4> -->
+        <div class="button-group">
+            <button id="position_d_decrease_0_01">-0.01</button>
+            <button id="position_d_decrease_0_1">-0.1</button>
+            <button id="position_d_decrease_1">-1</button>
+        </div>
+        <input type="text" id="position_d_value" class="pid-input" value="0" readonly>
+        <div class="button-group">
+            <button id="position_d_increase_1">+1</button>
+            <button id="position_d_increase_0_1">+0.1</button>
+            <button id="position_d_increase_0_01">+0.01</button>
+        </div>
+        <button id="position_d_reset" class="reset-button">复位</button>
+    </div>
+
+    <button id="hector_slam" class="hector_slam-button">重新建图</button>
+
+    <div id="data-display">等待数据...</div>
+    
+    <canvas id="trajectoryCanvas" width="500" height="500"></canvas>
+    <canvas id="myChart" width="500" height="500"></canvas>
+    
+    <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+    <!-- 引入静态 JavaScript 文件 -->
+    <script src="{{ url_for('static', filename='js/chart_min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <!-- <script src="{{ url_for('static', filename='js/three.js') }}"></script> -->
+</body>
+</html>

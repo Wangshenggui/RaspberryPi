@@ -1,0 +1,7 @@
+<launch>
+    <!-- 启动 uav_control_node 节点 -->
+    <node name="uav_control_node" pkg="uav_control" type="uav_control" output="screen">
+        <!-- 你可以在这里添加参数，例如：-->
+        <param name="param_name" value="param_value"/>
+    </node>
+</launch>

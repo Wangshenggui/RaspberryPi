@@ -1,0 +1,6 @@
+[ERROR] [1741069098.685386776]: Transform failed during publishing of map_odom transform: Lookup would require extrapolation 0.582968434s into the future.  Requested time 1741069097.621687412 but the latest data is at time 1741069097.038718939, when looking up transform from frame [base_frame] to frame [odom]
+WARNING: disk usage in log directory [/home/wheeltec/.ros/log] is over 1GB.
+It's recommended that you use the 'rosclean' command.
+
+RLException: Invalid roslaunch XML syntax: not well-formed (invalid token): line 34, column 48
+The traceback for the exception was written to the log file

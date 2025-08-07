@@ -17,6 +17,11 @@
 #include <string.h>
 #include "utils.h"
 #include <cmath>
+#include <sys/wait.h>
+#include <sensor_msgs/LaserScan.h>
+
+
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 int32_t out1,out2;
 int32_t out3,out4;
@@ -27,11 +32,46 @@ USB32_Structure USB32;
 // 启动 Python 脚本的函数
 void run_python_script()
 {
-    // 使用 std::system 启动 Python 脚本
-    int ret_code = std::system("python /home/ubuntu/catkin_ws/src/uav_control/scripts/web.py");
-    if (ret_code != 0)
-    {
-        ROS_ERROR("Failed to run Python script.");
+    // // 使用 std::system 启动 Python 脚本
+    // int ret_code = std::system("python /home/ubuntu/catkin_ws/src/uav_control/scripts/web.py");
+    // if (ret_code != 0)
+    // {
+    //     ROS_ERROR("Failed to run Python script.");
+    // }
+
+    ROS_INFO("[python_thread] Python script thread started");
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // 子进程：执行 python 脚本
+        execlp("python3", "python3", "/home/ubuntu/catkin_ws/src/uav_control/scripts/web.py", (char *)NULL);
+        // execlp 执行失败才会执行以下代码
+        perror("execlp failed");
+        _exit(1);
+    } else if (pid > 0) {
+        // 父进程：监控脚本是否退出，响应 ros::shutdown()
+        while (ros::ok()) {
+            int status;
+            pid_t result = waitpid(pid, &status, WNOHANG); // 非阻塞检查子进程是否退出
+
+            if (result == 0) {
+                // 子进程还在运行
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            } else {
+                ROS_WARN("Python script exited unexpectedly.");
+                break;
+            }
+        }
+
+        // 如果 ROS 要退出了，但脚本还活着，杀掉它
+        if (ros::isShuttingDown()) {
+            ROS_INFO("Killing Python script...");
+            kill(pid, SIGINT);
+        }
+
+        ROS_INFO("[python_thread] Exiting");
+    } else {
+        ROS_ERROR("Failed to fork process for Python script.");
     }
 }
 
@@ -207,11 +247,13 @@ void main_thread()
     close(fd2);
 }
 
+float vvv = 0.0f;
 void timer10msCallback(const ros::TimerEvent&)
 {
     PositionStructure Pos;
     Pos = getPosition();
 
+    // 获取激光雷达位置速度信息
     ScanPositionStructure ScanPos;
     ScanPos = getScanPosition();
 
@@ -259,39 +301,109 @@ void timer10msCallback(const ros::TimerEvent&)
 
     // 位置环控制
     out3 = pid_ctrl(&yDisplacePID, Pos.y * 100.0, 0);
-    // 速度前馈
-    float y_speed_feedforward = -ScanPos.y_s * 100.0; // 设定速度前馈增益
-    out3 += static_cast<int>(round(y_speed_feedforward));  // 将前馈加入位置控制输出
-
     // 限制位置控制输出
     out3 = out3 > 25 ? 25 : out3;
     out3 = out3 < -25 ? -25 : out3;
+
     // 将位置控制输出作为速度环的目标
     ySpeedPID.SetPoint = out3;
     // 速度环控制
     out4 = pid_ctrl(&ySpeedPID, ScanPos.y_s * 100.0, 0);
-    // // 加速度前馈
-    // float y_acceleration_feedforward = feedforward_controller(&y_sFeedforward,Pos.y_s*100.0); // 设定加速度前馈增益
-    // out4 += static_cast<int>(round(y_acceleration_feedforward));  // 将前馈加入速度控制输出
     // 限制速度控制输出
     out4 = out4 > 250 ? 250 : out4;
     out4 = out4 < -250 ? -250 : out4;
 
-    // ROS_INFO("Position -> x: %d, y: %d", out2, out4);
+    // // 定高
+    // HeightPID.SetPoint = 100.0;
+    // out5 = pid_ctrl(&HeightPID,USB32.Altitude,0);
+    // out5 = out5>500?500:out5;
+    // out5 = out5<-500?-500:out5;
 
-    // ROS_INFO("%f,%d,%d",Pos.x * 100.0,static_cast<int>(round(x_speed_feedforward)),static_cast<int>(round(x_acceleration_feedforward)));
-    // ROS_INFO("%f,%d,%d\r\n",Pos.y * 100.0,static_cast<int>(round(y_speed_feedforward)),static_cast<int>(round(y_acceleration_feedforward)));
-    // ROS_INFO("%f,%f\r\n",Pos.x_s*100.0,Pos.y_s*100.0);
-
-    // 定高
-    HeightPID.SetPoint = 100.0;
-    out5 = pid_ctrl(&HeightPID,USB32.Altitude,0);
-    out5 = out5>500?500:out5;
-    out5 = out5<-500?-500:out5;
+    printf("[%s:%d] 位置：%f, 速度：%f ##### %f\r\n", __FILENAME__, __LINE__, Pos.y, ScanPos.y_s,vvv);
 
     usb32_send_frame(0,out4,0);
 }
 
+
+
+
+// 全局变量保存上一帧的距离和时间
+float last_distance = std::numeric_limits<float>::quiet_NaN();
+ros::Time last_time;
+
+void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
+{
+    float angle_rad = M_PI / 2;  // 90度
+    int center_index = static_cast<int>((angle_rad - scan->angle_min) / scan->angle_increment);
+
+    if (center_index < 0 || center_index >= static_cast<int>(scan->ranges.size()))
+    {
+        ROS_WARN("Index for 90 deg out of range");
+        return;
+    }
+
+    // 获取当前距离
+    float current_distance = scan->ranges[center_index];
+
+    // 如果无效，尝试向两侧找最近的有效值
+    const int max_offset = 10;
+    if (current_distance <= 0.0f || std::isinf(current_distance) || std::isnan(current_distance))
+    {
+        bool found = false;
+        for (int offset = 1; offset <= max_offset; ++offset)
+        {
+            int left = center_index - offset;
+            int right = center_index + offset;
+
+            if (left >= 0)
+            {
+                float val = scan->ranges[left];
+                if (val > 0.0f && !std::isinf(val) && !std::isnan(val))
+                {
+                    current_distance = val;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (right < static_cast<int>(scan->ranges.size()))
+            {
+                float val = scan->ranges[right];
+                if (val > 0.0f && !std::isinf(val) && !std::isnan(val))
+                {
+                    current_distance = val;
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found)
+        {
+            ROS_WARN("No valid range at 90 deg or nearby");
+            return;
+        }
+    }
+
+    // 获取当前时间
+    ros::Time current_time = ros::Time::now();
+
+    // 如果有上一次的数据，计算速度
+    if (!std::isnan(last_distance))
+    {
+        double dt = (current_time - last_time).toSec();
+        if (dt > 0.0)
+        {
+            float speed = (current_distance - last_distance) / dt;  // m/s
+            // ROS_INFO("[90 deg] Distance: %.3f m | Speed: %.3f m/s", current_distance, speed);
+            vvv = speed;
+        }
+    }
+
+    // 保存当前为下次使用
+    last_distance = current_distance;
+    last_time = current_time;
+}
 int main(int argc, char** argv)
 {
     // 设置本地化环境，启用 UTF-8 支持
@@ -344,6 +456,10 @@ int main(int argc, char** argv)
     // 订阅多个话题
     ros::Subscriber pose_sub = subscribeToPoseTopic(nh);  // SLAM位姿
     ros::Subscriber scan_pose = subscribeToScanPoseTopic(nh);
+
+    // 添加激光雷达订阅
+    ros::Subscriber laser_sub = nh.subscribe("/scan", 10, scanCallback);
+
     // // ROS 运行
     // ros::spin();
     // 使用 AsyncSpinner 代替 ros::spin

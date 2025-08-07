@@ -3,6 +3,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 static PositionStructure Position;
 static ScanPositionStructure ScanPosition;
@@ -12,6 +13,8 @@ static void poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     // 倾斜补偿
     setPosition(&Position,msg->pose.position.x, msg->pose.position.y);
+
+    // ROS_INFO("[%s:%d] %lf, %lf\r\n", __FILENAME__, __LINE__, msg->pose.position.x, msg->pose.position.y);
 }
 
 static void setPosition(PositionStructure *pos,float x,float y)

@@ -20,6 +20,8 @@
 #include <sys/wait.h>
 #include <sensor_msgs/LaserScan.h>
 
+// PID倍率
+#define PID_SCALE 100
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -234,6 +236,12 @@ void main_thread()
                 // 重启建图
                 restartHectorSlamService();
             }
+
+            // 清除积分
+            xDisplacePID.SumError = 0;
+            yDisplacePID.SumError = 0;
+            xSpeedPID.SumError = 0;
+            ySpeedPID.SumError = 0;
         }
         catch (const std::exception& e) 
         {
@@ -247,6 +255,7 @@ void main_thread()
     close(fd2);
 }
 
+float ddd = 0.0f;
 float vvv = 0.0f;
 void timer10msCallback(const ros::TimerEvent&)
 {
@@ -263,8 +272,10 @@ void timer10msCallback(const ros::TimerEvent&)
     // 触发打点
     if(USB32.SetPosition == true && SetPositionFlag == true)
     {
-        xDisplacePID.SetPoint = Pos.x*100.0;
-        yDisplacePID.SetPoint = Pos.y*100.0;
+        xDisplacePID.SetPoint = Pos.x * PID_SCALE;
+        // yDisplacePID.SetPoint = Pos.y * PID_SCALE;
+        yDisplacePID.SetPoint = ddd * PID_SCALE;
+        
 
         // 清除积分
         xDisplacePID.SumError = 0;
@@ -300,7 +311,7 @@ void timer10msCallback(const ros::TimerEvent&)
     // out2 = out2 < -250 ? -250 : out2;
 
     // 位置环控制
-    out3 = pid_ctrl(&yDisplacePID, Pos.y * 100.0, 0);
+    out3 = pid_ctrl(&yDisplacePID, ddd * PID_SCALE, 0);
     // 限制位置控制输出
     out3 = out3 > 25 ? 25 : out3;
     out3 = out3 < -25 ? -25 : out3;
@@ -308,7 +319,8 @@ void timer10msCallback(const ros::TimerEvent&)
     // 将位置控制输出作为速度环的目标
     ySpeedPID.SetPoint = out3;
     // 速度环控制
-    out4 = pid_ctrl(&ySpeedPID, ScanPos.y_s * 100.0, 0);
+    // out4 = pid_ctrl(&ySpeedPID, ScanPos.y_s, 0);
+    out4 = pid_ctrl(&ySpeedPID, vvv * PID_SCALE, 0);
     // 限制速度控制输出
     out4 = out4 > 250 ? 250 : out4;
     out4 = out4 < -250 ? -250 : out4;
@@ -319,8 +331,9 @@ void timer10msCallback(const ros::TimerEvent&)
     // out5 = out5>500?500:out5;
     // out5 = out5<-500?-500:out5;
 
-    printf("[%s:%d] 位置：%f, 速度：%f ##### %f\r\n", __FILENAME__, __LINE__, Pos.y, ScanPos.y_s,vvv);
-
+    // printf("[%s:%d] 位置：%f, 速度：%f ##### %f\r\n", __FILENAME__, __LINE__, Pos.y, ScanPos.y_s,vvv);
+    // printf("[%s:%d] %f, %f\r\n", __FILENAME__, __LINE__, yDisplacePID.SumError,ySpeedPID.SumError);
+    
     usb32_send_frame(0,out4,0);
 }
 
@@ -395,7 +408,8 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
         if (dt > 0.0)
         {
             float speed = (current_distance - last_distance) / dt;  // m/s
-            // ROS_INFO("[90 deg] Distance: %.3f m | Speed: %.3f m/s", current_distance, speed);
+            ROS_INFO("[90 deg] Distance: %.3f m | Speed: %.3f m/s", current_distance, speed);
+            ddd = current_distance;
             vvv = speed;
         }
     }

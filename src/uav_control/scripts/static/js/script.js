@@ -123,29 +123,38 @@ const centerX = canvas.width / 2;
 const centerY = canvas.height / 2;
 
 // 定义绘制轨迹的函数
+// 用数组保存轨迹点
+let points = [];
+const maxPoints = 20;
+
 function drawTrajectory(x, y) {
-    x=x + centerX;
-    y=y + centerY;
-    // 如果有上次的位置，则清除上次的点
-    if (lastX !== null && lastY !== null) 
-    {
-        ctx1.clearRect(lastX - 3, lastY - 3, 6, 6); // 清除上次的小圆点区域
+    let canvasX = centerX - x;
+    let canvasY = centerY - y;
+
+    // 加入新点
+    points.push({ x: canvasX, y: canvasY });
+
+    // 如果超出最大数量，删除最前面的点
+    if (points.length > maxPoints) {
+        points.shift();
     }
-    
+
+    // 清空画布（不清就会重叠）
+    ctx1.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 画中心点
     ctx1.beginPath();
-    ctx1.arc(centerX, centerY, 1, 0, Math.PI * 2, false); // 画一个小圆点
+    ctx1.arc(centerX, centerY, 1, 0, Math.PI * 2, false);
     ctx1.fillStyle = 'red';
     ctx1.fill();
 
-    // 绘制当前轨迹点
-    ctx1.beginPath();
-    ctx1.arc(x, y, 3, 0, Math.PI * 2, false); // 画一个小圆点
+    // 画轨迹点
     ctx1.fillStyle = 'blue';
-    ctx1.fill();
-
-    // 更新上次的位置
-    lastX = x;
-    lastY = y;
+    points.forEach(p => {
+        ctx1.beginPath();
+        ctx1.arc(p.x, p.y, 3, 0, Math.PI * 2, false);
+        ctx1.fill();
+    });
 }
 
 const dataPoints = 300;  // 图表数据点的数量
@@ -258,7 +267,7 @@ setInterval(async function() {
 
     // 更新图表
     myChart.update();
-}, 10);  // 每隔1秒请求一次数据
+}, 100);  // 每隔1秒请求一次数据
 
 // 调整速度环的 PID 参数
 speedPIncrease1.addEventListener('click', () => {

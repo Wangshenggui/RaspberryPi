@@ -10,12 +10,14 @@ typedef struct
     float y;
     float x_s;
     float y_s;
-}PositionStructure;
+    float Angle;
+    float Rad;
+} PositionStructure;
 
 // 订阅话题的函数
 ros::Subscriber subscribeToPoseTopic(ros::NodeHandle& nh);
 
-static void setPosition(PositionStructure *pos,float x,float y);
+static void setPosition(PositionStructure *pos,float x,float y,float a);
 PositionStructure getPosition(void);
 
 

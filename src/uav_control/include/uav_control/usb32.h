@@ -12,7 +12,7 @@ typedef struct
 void usb32_init(void);
 void usb32_thread(void);
 USB32_Structure get_USB32_Status(void);
-void usb32_send_frame(int16_t x, int16_t y, int16_t z);
+void usb32_send_frame(int16_t x, int16_t y, int16_t z, int16_t yaw);
 
 
 

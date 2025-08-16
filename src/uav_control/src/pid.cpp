@@ -6,6 +6,10 @@ PID_TypeDef xSpeedPID={0};
 PID_TypeDef yDisplacePID={0};
 PID_TypeDef ySpeedPID={0};
 
+// 航向环
+PID_TypeDef yawAnglePID={0};
+PID_TypeDef yawRadPID={0};
+
 PID_TypeDef HeightPID = {0};
 
 
@@ -27,30 +31,55 @@ void pid_init(PID_TypeDef *PID)
       PID->Proportion = LocationKP;    /* 比例常数 Proportional Const */
       PID->Integral = LocationKI;      /* 积分常数 Integral Const */
       PID->Derivative = LocationKD;    /* 微分常数 Derivative Const */ 
+      // PID->Proportion = 0.5;    /* 比例常数 Proportional Const */
+      // PID->Integral = 0.1;      /* 积分常数 Integral Const */
+      // PID->Derivative = 0;    /* 微分常数 Derivative Const */ 
     }
     else if(PID==&xSpeedPID)
     {
       PID->Proportion = SpeedKP;    /* 比例常数 Proportional Const */
       PID->Integral = SpeedKI;      /* 积分常数 Integral Const */
       PID->Derivative = SpeedKD;    /* 微分常数 Derivative Const */ 
+      // PID->Proportion = -5;    /* 比例常数 Proportional Const */
+      // PID->Integral = 0;      /* 积分常数 Integral Const */
+      // PID->Derivative = -2;    /* 微分常数 Derivative Const */ 
     }
     if(PID==&yDisplacePID)
     {
       PID->Proportion = LocationKP;    /* 比例常数 Proportional Const */
       PID->Integral = LocationKI;      /* 积分常数 Integral Const */
       PID->Derivative = LocationKD;    /* 微分常数 Derivative Const */ 
+      // PID->Proportion = 0.5;    /* 比例常数 Proportional Const */
+      // PID->Integral = 0.1;      /* 积分常数 Integral Const */
+      // PID->Derivative = 0;    /* 微分常数 Derivative Const */ 
     }
     else if(PID==&ySpeedPID)
     {
       PID->Proportion = SpeedKP;    /* 比例常数 Proportional Const */
       PID->Integral = SpeedKI;      /* 积分常数 Integral Const */
       PID->Derivative = SpeedKD;    /* 微分常数 Derivative Const */ 
+      // PID->Proportion = -5;    /* 比例常数 Proportional Const */
+      // PID->Integral = 0;      /* 积分常数 Integral Const */
+      // PID->Derivative = -2;    /* 微分常数 Derivative Const */ 
     }
     else if(PID==&HeightPID)
     {
       PID->Proportion = 6.0;    /* 比例常数 Proportional Const */
       PID->Integral = 0.0;      /* 积分常数 Integral Const */
       PID->Derivative = 1.0;    /* 微分常数 Derivative Const */ 
+    }
+    // 航向环
+    else if(PID==&yawAnglePID)
+    {
+      PID->Proportion = 0;    /* 比例常数 Proportional Const */
+      PID->Integral = 0;      /* 积分常数 Integral Const */
+      PID->Derivative = 0;    /* 微分常数 Derivative Const */ 
+    }
+    else if(PID==&yawRadPID)
+    {
+      PID->Proportion = 0;    /* 比例常数 Proportional Const */
+      PID->Integral = 0;      /* 积分常数 Integral Const */
+      PID->Derivative = 0;    /* 微分常数 Derivative Const */ 
     }
 }
 
@@ -106,6 +135,14 @@ int32_t pid_ctrl(PID_TypeDef *PID, float Feedback_value, int PID_Mode)
           PID->SumError = (PID->SumError < -INTEGRAL_LIMIT) ? -INTEGRAL_LIMIT : PID->SumError;
         }
         else if(PID==&yDisplacePID)
+        {
+          int32_t INTEGRAL_LIMIT = 100;  // 定义积分限制
+          // 积分限幅：防止积分项过大
+          PID->SumError = (PID->SumError > INTEGRAL_LIMIT) ? INTEGRAL_LIMIT : PID->SumError;
+          PID->SumError = (PID->SumError < -INTEGRAL_LIMIT) ? -INTEGRAL_LIMIT : PID->SumError;
+        }
+        // 航向环
+        else if(PID==&yawAnglePID)
         {
           int32_t INTEGRAL_LIMIT = 100;  // 定义积分限制
           // 积分限幅：防止积分项过大

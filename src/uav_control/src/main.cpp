@@ -27,7 +27,7 @@
 
 int32_t out1,out2;
 int32_t out3,out4;
-int32_t out5;
+int32_t out5,out6;
 
 USB32_Structure USB32;
 
@@ -74,6 +74,40 @@ void run_python_script()
         ROS_INFO("[python_thread] Exiting");
     } else {
         ROS_ERROR("Failed to fork process for Python script.");
+    }
+}
+// 启动一个 Python 脚本并监控
+void _run_python_script(const std::string& script_path)
+{
+    ROS_INFO("[python_thread] Starting script: %s", script_path.c_str());
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // 子进程执行脚本
+        execlp("python3", "python3", script_path.c_str(), (char*)NULL);
+        perror("execlp failed");
+        _exit(1);
+    } else if (pid > 0) {
+        // 父进程监控
+        while (ros::ok()) {
+            int status;
+            pid_t result = waitpid(pid, &status, WNOHANG);
+            if (result == 0) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            } else {
+                ROS_WARN("Python script %s exited unexpectedly.", script_path.c_str());
+                break;
+            }
+        }
+
+        if (ros::isShuttingDown()) {
+            ROS_INFO("Killing Python script %s...", script_path.c_str());
+            kill(pid, SIGINT);
+        }
+
+        ROS_INFO("[python_thread] Script %s exiting", script_path.c_str());
+    } else {
+        ROS_ERROR("Failed to fork for script %s", script_path.c_str());
     }
 }
 
@@ -177,10 +211,15 @@ void main_thread()
 \"ki_position\": %f,\
 \"kd_position\": %f\
 }",\
+            // out1,out2,out3,out4,out5,\
+            // Pos.x,Pos.y,USB32.Altitude,\
+            // xSpeedPID.Proportion,xSpeedPID.Integral,xSpeedPID.Derivative,\
+            // xDisplacePID.Proportion,xDisplacePID.Integral,xDisplacePID.Derivative
+            // );
             out1,out2,out3,out4,out5,\
             Pos.x,Pos.y,USB32.Altitude,\
-            xSpeedPID.Proportion,xSpeedPID.Integral,xSpeedPID.Derivative,\
-            xDisplacePID.Proportion,xDisplacePID.Integral,xDisplacePID.Derivative
+            yawRadPID.Proportion,yawRadPID.Integral,yawRadPID.Derivative,\
+            yawAnglePID.Proportion,yawAnglePID.Integral,yawAnglePID.Derivative
             );
         strncpy((char*)ptr2, str, max_size2);
 
@@ -202,34 +241,58 @@ void main_thread()
 
             if (root.objectValue.find("position_p") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xDisplacePID.Proportion = root.objectValue["position_p"].numberValue;
                 yDisplacePID.Proportion = root.objectValue["position_p"].numberValue;
+
+                // 航向环
+                yawAnglePID.Proportion = root.objectValue["position_p"].numberValue;
             }
             if (root.objectValue.find("position_i") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xDisplacePID.Integral = root.objectValue["position_i"].numberValue;
                 yDisplacePID.Integral = root.objectValue["position_i"].numberValue;
+
+                // 航向环
+                yawAnglePID.Integral = root.objectValue["position_i"].numberValue;
             }
             if (root.objectValue.find("position_d") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xDisplacePID.Derivative = root.objectValue["position_d"].numberValue;
                 yDisplacePID.Derivative = root.objectValue["position_d"].numberValue;
+
+                // 航向环
+                yawAnglePID.Derivative = root.objectValue["position_d"].numberValue;
             }
 
             if (root.objectValue.find("speed_p") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xSpeedPID.Proportion = root.objectValue["speed_p"].numberValue;
                 ySpeedPID.Proportion = root.objectValue["speed_p"].numberValue;
+
+                // 航向环
+                yawRadPID.Proportion = root.objectValue["speed_p"].numberValue;
             }
             if (root.objectValue.find("speed_i") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xSpeedPID.Integral = root.objectValue["speed_i"].numberValue;
                 ySpeedPID.Integral = root.objectValue["speed_i"].numberValue;
+
+                // 航向环
+                yawRadPID.Integral = root.objectValue["speed_i"].numberValue;
             }
             if (root.objectValue.find("speed_d") != root.objectValue.end()) 
             {
+                // 暂时不用调整位置参数
                 xSpeedPID.Derivative = root.objectValue["speed_d"].numberValue;
                 ySpeedPID.Derivative = root.objectValue["speed_d"].numberValue;
+
+                // 航向环
+                yawRadPID.Derivative = root.objectValue["speed_d"].numberValue;
             }
             if (root.objectValue.find("hector_slam") != root.objectValue.end()) 
             {
@@ -255,7 +318,7 @@ void main_thread()
     close(fd2);
 }
 
-float ddd = 0.0f;
+// float ddd = 0.0f;
 float vvv = 0.0f;
 void timer10msCallback(const ros::TimerEvent&)
 {
@@ -273,9 +336,11 @@ void timer10msCallback(const ros::TimerEvent&)
     if(USB32.SetPosition == true && SetPositionFlag == true)
     {
         xDisplacePID.SetPoint = Pos.x * PID_SCALE;
-        // yDisplacePID.SetPoint = Pos.y * PID_SCALE;
-        yDisplacePID.SetPoint = ddd * PID_SCALE;
+        yDisplacePID.SetPoint = Pos.y * PID_SCALE;
+        // yDisplacePID.SetPoint = ddd * PID_SCALE;
         
+        yawAnglePID.SetPoint = Pos.Angle;
+
 
         // 清除积分
         xDisplacePID.SumError = 0;
@@ -283,6 +348,9 @@ void timer10msCallback(const ros::TimerEvent&)
 
         xSpeedPID.SumError = 0;
         ySpeedPID.SumError = 0;
+
+        yawAnglePID.SumError = 0;
+        yawRadPID.SumError = 0;
 
         SetPositionFlag = false;
     }
@@ -309,32 +377,71 @@ void timer10msCallback(const ros::TimerEvent&)
     // // 限制速度控制输出
     // out2 = out2 > 250 ? 250 : out2;
     // out2 = out2 < -250 ? -250 : out2;
+    // 位置环控制
+    out1 = pid_ctrl(&xDisplacePID, Pos.x * PID_SCALE, 0);
+    // 限制位置控制输出
+    out1 = out1 > 20 ? 20 : out1;
+    out1 = out1 < -20 ? -20 : out1;
+    // printf("%f***\r\n",Pos.x_s * PID_SCALE);
+
+    // 将位置控制输出作为速度环的目标
+    xSpeedPID.SetPoint = out1;
+    // 速度环控制
+    out2 = pid_ctrl(&xSpeedPID, Pos.x_s * PID_SCALE, 0);
+    // out4 = pid_ctrl(&ySpeedPID, vvv * PID_SCALE, 0);
+    // 限制速度控制输出
+    out2 = out2 > 250 ? 250 : out2;
+    out2 = out2 < -250 ? -250 : out2;
+
+
+
+
+
 
     // 位置环控制
-    out3 = pid_ctrl(&yDisplacePID, ddd * PID_SCALE, 0);
+    out3 = pid_ctrl(&yDisplacePID, Pos.y * PID_SCALE, 0);
     // 限制位置控制输出
-    out3 = out3 > 25 ? 25 : out3;
-    out3 = out3 < -25 ? -25 : out3;
+    out3 = out3 > 20 ? 20 : out3;
+    out3 = out3 < -20 ? -20 : out3;
 
     // 将位置控制输出作为速度环的目标
     ySpeedPID.SetPoint = out3;
     // 速度环控制
-    // out4 = pid_ctrl(&ySpeedPID, ScanPos.y_s, 0);
-    out4 = pid_ctrl(&ySpeedPID, vvv * PID_SCALE, 0);
+    out4 = pid_ctrl(&ySpeedPID, Pos.y_s * PID_SCALE, 0);
+    // out4 = pid_ctrl(&ySpeedPID, vvv * PID_SCALE, 0);
     // 限制速度控制输出
     out4 = out4 > 250 ? 250 : out4;
     out4 = out4 < -250 ? -250 : out4;
 
+    
+
+
+    // 角度环控制
+    out5 = pid_ctrl(&yawAnglePID, Pos.Angle, 0);
+    // 限制位置控制输出
+    out5 = out5 > 20 ? 20 : out5;
+    out5 = out5 < -20 ? -20 : out5;
+
+    // 将位置控制输出作为速度环的目标
+    yawRadPID.SetPoint = out5;
+    // 角速度环控制
+    out6 = pid_ctrl(&yawRadPID, Pos.Rad, 0);
+    // 限制速度控制输出
+    out6 = out6 > 250 ? 250 : out6;
+    out6 = out6 < -250 ? -250 : out6;
+    
     // // 定高
     // HeightPID.SetPoint = 100.0;
     // out5 = pid_ctrl(&HeightPID,USB32.Altitude,0);
     // out5 = out5>500?500:out5;
     // out5 = out5<-500?-500:out5;
 
-    // printf("[%s:%d] 位置：%f, 速度：%f ##### %f\r\n", __FILENAME__, __LINE__, Pos.y, ScanPos.y_s,vvv);
+    // ROS_INFO("[%s:%d] 位置：%f, 位置计算得到速度：%f 真实物理速度 %f\r\n", __FILENAME__, __LINE__, Pos.y, ScanPos.y_s,vvv);
     // printf("[%s:%d] %f, %f\r\n", __FILENAME__, __LINE__, yDisplacePID.SumError,ySpeedPID.SumError);
+    ROS_INFO("[%s:%d] x位置：%d, x位置：%d\r\n y位置：%d, x位置：%d\r\n", __FILENAME__, __LINE__, out5,out6,0,0);
     
-    usb32_send_frame(0,out4,0);
+    // x,y,z,yaw
+    usb32_send_frame(out2,out4,0,0);
 }
 
 
@@ -408,8 +515,8 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
         if (dt > 0.0)
         {
             float speed = (current_distance - last_distance) / dt;  // m/s
-            ROS_INFO("[90 deg] Distance: %.3f m | Speed: %.3f m/s", current_distance, speed);
-            ddd = current_distance;
+            // ROS_INFO("[90 deg] Distance: %.3f m | Speed: %.3f m/s", current_distance, speed);
+            // ddd = current_distance;
             vvv = speed;
         }
     }
@@ -430,6 +537,12 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
     ros::Time::init();
 
+    int ret = system("rosrun topic_tools throttle messages /ikun 25.0 /ikun_throttled &");
+    if (ret != 0) {
+        ROS_WARN("Failed to start throttle node, return code: %d", ret);
+    }
+
+
     feedforward_init(&xFeedforward,1.4,0.7);
     feedforward_init(&x_sFeedforward,1.4,0.7);
     feedforward_init(&yFeedforward,1.4,0.7);
@@ -439,6 +552,9 @@ int main(int argc, char** argv)
     pid_init(&xSpeedPID);
     pid_init(&yDisplacePID);
     pid_init(&ySpeedPID);
+    // 航向环
+    pid_init(&yawAnglePID);
+    pid_init(&yawRadPID);
     pid_init(&HeightPID);
 
     initLowPassFilter(&x_sLowPassFilter,2.0,10.0);
@@ -465,14 +581,21 @@ int main(int argc, char** argv)
     std::thread _Main_thread(main_thread);
 
     // 启动 Python 脚本线程
-    std::thread _Python_thread(run_python_script);
+    // std::thread _Python_thread(run_python_script);
+    // 启动两个脚本线程
+    std::thread t1(_run_python_script, "/home/ubuntu/catkin_ws/src/uav_control/scripts/web.py");
+    // std::thread t2(_run_python_script, "/home/ubuntu/catkin_ws/src/test/scripts/test05.py");
+
+    std::cout << "10 秒后再执行后续代码" << std::endl;
+    // 等待 10 秒
+    // std::this_thread::sleep_for(std::chrono::seconds(10));
 
     // 订阅多个话题
     ros::Subscriber pose_sub = subscribeToPoseTopic(nh);  // SLAM位姿
-    ros::Subscriber scan_pose = subscribeToScanPoseTopic(nh);
+    // ros::Subscriber scan_pose = subscribeToScanPoseTopic(nh);
 
     // 添加激光雷达订阅
-    ros::Subscriber laser_sub = nh.subscribe("/scan", 10, scanCallback);
+    // ros::Subscriber laser_sub = nh.subscribe("/scan", 10, scanCallback);
 
     // // ROS 运行
     // ros::spin();
@@ -483,7 +606,9 @@ int main(int argc, char** argv)
     // 等待所有线程结束
     _Usb32_thread.join();
     _Main_thread.join();
-    _Python_thread.join();
+    // _Python_thread.join();
+    t1.detach();
+    // t2.detach();
 
     return 0;
 }

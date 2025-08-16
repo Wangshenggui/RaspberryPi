@@ -82,7 +82,7 @@ USB32_Structure get_USB32_Status(void)
     return USB32_Struct;
 }
 
-void usb32_send_frame(int16_t x, int16_t y, int16_t z)
+void usb32_send_frame(int16_t x, int16_t y, int16_t z, int16_t yaw)
 {
     if (!serial.is_open())
     {
@@ -91,14 +91,22 @@ void usb32_send_frame(int16_t x, int16_t y, int16_t z)
     }
 
     // 检查 x/y 是否在 2 字节有符号整数范围内
-    if (x < -32768 || x > 32767 || y < -32768 || y > 32767 || z < -32768 || z > 32767)
+    if (x < -32768 || x > 32767 || y < -32768 || y > 32767 || z < -32768 || z > 32767 || yaw < -32768 || yaw > 32767)
     {
         ROS_ERROR("x/y 超出 2 字节有符号整数范围 (-32768 ~ 32767)");
         return;
     }
 
     // 帧头
-    uint8_t frame[11];
+    uint8_t frame[
+        /*帧头 2 字节*/2
+        +/*x 2 字节*/2
+        +/*y 2 字节*/2
+        +/*z 2 字节*/2
+        +/*yaw 2 字节*/2
+        +/*校验 1 字节*/1
+        +/*帧尾 2 字节*/2
+        ];
     frame[0] = 0xAA;
     frame[1] = 0x55;
 
@@ -109,13 +117,15 @@ void usb32_send_frame(int16_t x, int16_t y, int16_t z)
     frame[5] = y & 0xFF;
     frame[6] = (z >> 8) & 0xFF;
     frame[7] = z & 0xFF;
+    frame[8] = (yaw >> 8) & 0xFF;
+    frame[9] = yaw & 0xFF;
 
     // 计算校验位（x 和 y 逐字节异或）
-    frame[8] = frame[2] ^ frame[3] ^ frame[4] ^ frame[5] ^ frame[6] ^ frame[7];
+    frame[10] = frame[2] ^ frame[3] ^ frame[4] ^ frame[5] ^ frame[6] ^ frame[7] ^ frame[8] ^ frame[9];
 
     // 帧尾
-    frame[9] = 0xEB;
-    frame[10] = 0x90;
+    frame[11] = 0xEB;
+    frame[12] = 0x90;
 
     // 发送数据
     boost::system::error_code error;

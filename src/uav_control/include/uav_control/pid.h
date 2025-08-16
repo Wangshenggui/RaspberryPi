@@ -49,6 +49,9 @@ extern PID_TypeDef xSpeedPID;
 extern PID_TypeDef yDisplacePID;
 extern PID_TypeDef ySpeedPID;
 
+extern PID_TypeDef yawAnglePID;
+extern PID_TypeDef yawRadPID;
+
 extern PID_TypeDef HeightPID;
 /******************************************************************************************/
 

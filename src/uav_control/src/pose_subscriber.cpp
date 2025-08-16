@@ -2,6 +2,10 @@
 #include "utils.h"
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
+#include <tf/transform_datatypes.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <ros/ros.h>
+
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -11,32 +15,74 @@ static ScanPositionStructure ScanPosition;
 // 订阅话题回调函数
 static void poseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
-    // 倾斜补偿
-    setPosition(&Position,msg->pose.position.x, msg->pose.position.y);
+    // 获取四元数
+    double qx = msg->pose.orientation.x;
+    double qy = msg->pose.orientation.y;
+    double qz = msg->pose.orientation.z;
+    double qw = msg->pose.orientation.w;
 
-    // ROS_INFO("[%s:%d] %lf, %lf\r\n", __FILENAME__, __LINE__, msg->pose.position.x, msg->pose.position.y);
+    // 转成 tf::Quaternion
+    tf::Quaternion q(qx, qy, qz, qw);
+
+    // 转成欧拉角
+    double roll, pitch, yaw;
+    tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    
+    // 打印航向角（Yaw）
+    // ROS_INFO("Yaw: %f rad, %f deg", yaw, yaw*180.0/M_PI);
+
+    setPosition(&Position,msg->pose.position.x, msg->pose.position.y,yaw*180.0/M_PI);
 }
 
-static void setPosition(PositionStructure *pos,float x,float y)
+static void setPosition(PositionStructure *pos,float x,float y,float a)
 {
     static float l_x,l_y;
+    static float l_a;
+    static ros::Time last_time = ros::Time(0); // 新增静态时间
 
     float x_d_temp = x;
     float y_d_temp = y;
+    float a_temp = a;
 
-    pos->x = KalmanFilter_Update(&xDisKalmanFilter,x_d_temp);
-    pos->y = KalmanFilter_Update(&yDisKalmanFilter,y_d_temp);
+    // pos->x = KalmanFilter_Update(&xDisKalmanFilter,x_d_temp);
+    pos->x = x;
+    // pos->y = KalmanFilter_Update(&yDisKalmanFilter,y_d_temp);
+    pos->y = y;
+    // 航向
+    pos->Angle = a;
 
-    float x_s_temp = (pos->x-l_x)/0.1f;
-    float y_s_temp = (pos->y-l_y)/0.1f;
+    // 计算动态时间间隔
+    ros::Time current_time = ros::Time::now();
+    static float dt = 0.1f; // 默认值
+    if (last_time.toSec() > 0.0)
+    {
+        dt = (current_time - last_time).toSec();
+        if (dt < 1e-3) dt = 1e-3; // 防止除零
+    }
 
-    pos->x_s = applyLowPassFilter(&x_sLowPassFilter,x_s_temp);
-    pos->y_s = applyLowPassFilter(&y_sLowPassFilter,y_s_temp);
+    float x_s_temp = (pos->x-l_x)/dt;
+    float y_s_temp = (pos->y-l_y)/dt;
 
-    // ROS_INFO("%f,%f\r\n",pos->y*100.0,pos->y_s*100.0);
+    float r_temp = (pos->Angle-l_a)/dt;
+
+    // pos->x_s = applyLowPassFilter(&x_sLowPassFilter,x_s_temp);
+    pos->x_s = x_s_temp;
+    // pos->y_s = applyLowPassFilter(&y_sLowPassFilter,y_s_temp);
+    pos->y_s = y_s_temp;
+
+    pos->Rad = r_temp;
+
+    // ROS_INFO("%f,%f     %f,%f\r\n",pos->y*100.0,pos->y_s*100.0,     pos->x*100.0,pos->x_s*100.0);
+    // ROS_INFO("%f,%f\t\t",pos->y*100.0,pos->x*100.0);
+    // ROS_INFO("%f,%f     %f\r\n",pos->y_s*100.0,pos->x_s*100.0,dt);
+    // ROS_INFO("角度：%f,角速度：%f\r\n",pos->Angle,pos->Rad);
 
     l_x = pos->x;
     l_y = pos->y;
+
+    l_a = pos->Angle;
+
+    last_time = current_time; // 更新时间
 }
 PositionStructure getPosition(void)
 {
@@ -46,7 +92,8 @@ PositionStructure getPosition(void)
 // 订阅话题的函数
 ros::Subscriber subscribeToPoseTopic(ros::NodeHandle& nh)
 {
-    return nh.subscribe("slam_out_pose", 1000, poseCallback);
+    return nh.subscribe("/slam_out_pose", 1000, poseCallback);
+    // return nh.subscribe("/ikun_throttled", 1000, poseCallback);
 }
 
 
